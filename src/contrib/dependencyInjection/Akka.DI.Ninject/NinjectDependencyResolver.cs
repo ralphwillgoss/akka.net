@@ -1,11 +1,15 @@
-﻿using Akka.Actor;
-using Akka.DI.Core;
-using Ninject;
+﻿//-----------------------------------------------------------------------
+// <copyright file="NinjectDependencyResolver.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using Akka.Actor;
+using Akka.DI.Core;
+using Ninject;
 
 namespace Akka.DI.Ninject
 {
@@ -51,12 +55,10 @@ namespace Akka.DI.Ninject
         /// </summary>
         /// <param name="actorName">Name of the ActorType</param>
         /// <returns>factory delegate</returns>
-        public Func<ActorBase> CreateActorFactory(string actorName)
+        public Func<ActorBase> CreateActorFactory(Type actorType)
         {
             return () =>
             {
-                Type actorType = this.GetType(actorName);
-
                 return (ActorBase)container.GetService(actorType);
             };
         }
@@ -67,26 +69,17 @@ namespace Akka.DI.Ninject
         /// <returns>Props configuration instance</returns>
         public Props Create<TActor>() where TActor : ActorBase
         {
-            return system.GetExtension<DIExt>().Props(typeof(TActor).Name);
-        }
-    }
-    internal static class Extensions
-    {
-        public static Type GetTypeValue(this string typeName)
-        {
-            var firstTry = Type.GetType(typeName);
-            Func<Type> searchForType = () =>
-            {
-                return
-                AppDomain.
-                    CurrentDomain.
-                    GetAssemblies().
-                    SelectMany(x => x.GetTypes()).
-                    Where(t => t.Name.Equals(typeName)).
-                    FirstOrDefault();
-            };
-            return firstTry ?? searchForType();
+            return system.GetExtension<DIExt>().Props(typeof(TActor));
         }
 
+        /// <summary>
+        /// This method is used to signal the DI Container that it can
+        /// release it's reference to the actor.  <see href="http://www.amazon.com/Dependency-Injection-NET-Mark-Seemann/dp/1935182501/ref=sr_1_1?ie=UTF8&qid=1425861096&sr=8-1&keywords=mark+seemann">HERE</see> 
+        /// </summary>
+        /// <param name="actor"></param>
+        public void Release(ActorBase actor)
+        {
+            container.Release(actor);
+        }
     }
 }

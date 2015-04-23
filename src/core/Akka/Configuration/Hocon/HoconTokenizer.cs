@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="HoconTokenizer.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -606,7 +613,7 @@ namespace Akka.Configuration.Hocon
             }
 
             throw new Exception(
-                "Expected value: Null literal, Array, Number, Boolean, Quoted Text, Unquoted Text, Tripple quoted Text, Object or End of array");
+                "Expected value: Null literal, Array, Number, Boolean, Quoted Text, Unquoted Text, Triple quoted Text, Object or End of array");
         }
 
         /// <summary>
@@ -745,3 +752,4 @@ namespace Akka.Configuration.Hocon
         }
     }
 }
+

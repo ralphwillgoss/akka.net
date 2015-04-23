@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="ActorPath.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Akka.Util;
@@ -32,7 +39,7 @@ namespace Akka.Actor
 
             public string Path { get; private set; }
 
-            public object FromSurrogate(ActorSystem system)
+            public ISurrogated FromSurrogate(ActorSystem system)
             {
                 ActorPath path;
                 if (TryParse(Path, out path))
@@ -585,5 +592,5 @@ namespace Akka.Actor
             return InternalCompareTo(left.Parent, right.Parent);
         }
     }
-
 }
+

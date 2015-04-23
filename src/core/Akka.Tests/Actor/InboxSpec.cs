@@ -1,6 +1,12 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="InboxSpec.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Akka.Actor;
@@ -13,7 +19,8 @@ namespace Akka.Tests.Actor
 {
     public class InboxSpec : AkkaSpec
     {
-        private Inbox _inbox;
+        private readonly Inbox _inbox;
+
         public InboxSpec()
             : base("akka.actor.inbox.inbox-size=1000")  //Default is 1000 but just to make sure these tests don't fail we set it
         {
@@ -99,7 +106,7 @@ namespace Akka.Tests.Actor
                     o.ShouldBe(0);
                 }
 
-                //The inbox should be empty now, so receiving should result in a timeout             
+                //The inbox should be empty now, so receiving should result in a timeout
                 Intercept<TimeoutException>(() =>
                 {
                     var received = _inbox.Receive(TimeSpan.FromSeconds(1));
@@ -112,15 +119,15 @@ namespace Akka.Tests.Actor
             }
         }
 
-
         [Fact]
         public void Inbox_have_a_default_and_custom_timeouts()
         {
-            Within(TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(6), () =>
+            Within(TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(6), () =>
             {
                 Intercept<TimeoutException>(() => _inbox.Receive());
                 return true;
             });
+
             Within(TimeSpan.FromSeconds(1), () =>
             {
                 Intercept<TimeoutException>(() => _inbox.Receive(TimeSpan.FromMilliseconds(100)));
@@ -146,3 +153,4 @@ namespace Akka.Tests.Actor
 
     }
 }
+

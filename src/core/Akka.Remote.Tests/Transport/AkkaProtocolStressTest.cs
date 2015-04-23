@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="AkkaProtocolStressTest.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Text.RegularExpressions;
 using Akka.Actor;
 using Akka.Configuration;
@@ -64,10 +71,10 @@ namespace Akka.Remote.Tests.Transport
             private int MaxSeq = -1;
             private int Losses = 0;
 
-            private ActorRef _remote;
-            private ActorRef _controller;
+            private IActorRef _remote;
+            private IActorRef _controller;
 
-            public SequenceVerifier(ActorRef remote, ActorRef controller)
+            public SequenceVerifier(IActorRef remote, IActorRef controller)
             {
                 _remote = remote;
                 _controller = controller;
@@ -84,7 +91,7 @@ namespace Akka.Remote.Tests.Transport
                     _remote.Tell(NextSeq);
                     NextSeq++;
                     if (NextSeq%2000 == 0)
-                        Context.System.Scheduler.ScheduleOnce(TimeSpan.FromMilliseconds(500), Self, "sendNext");
+                        Context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromMilliseconds(500), Self, "sendNext", Self);
                     else
                         Self.Tell("sendNext");
                 }
@@ -104,8 +111,8 @@ namespace Akka.Remote.Tests.Transport
                         if (seq > Limit*0.5)
                         {
                             _controller.Tell(Tuple.Create(MaxSeq, Losses));
-                            Context.System.Scheduler.Schedule(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1), Self,
-                                ResendFinal.Instance);
+                            Context.System.Scheduler.ScheduleTellRepeatedly(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1), Self,
+                                ResendFinal.Instance, Self);
                             Context.Become(Done);
                         }
                     }
@@ -139,7 +146,7 @@ namespace Akka.Remote.Tests.Transport
         }
 
         private ActorSystem systemB;
-        private ActorRef remote;
+        private IActorRef remote;
 
         private Address AddressB
         {
@@ -151,7 +158,7 @@ namespace Akka.Remote.Tests.Transport
             get { return new RootActorPath(AddressB); }
         }
 
-        private ActorRef Here
+        private IActorRef Here
         {
             get
             {
@@ -212,3 +219,4 @@ namespace Akka.Remote.Tests.Transport
         #endregion
     }
 }
+

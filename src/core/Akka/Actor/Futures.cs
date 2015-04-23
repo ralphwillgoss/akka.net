@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="Futures.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -24,7 +31,7 @@ namespace Akka.Actor
 
         public static async Task<T> Ask<T>(this ICanTell self, object message, TimeSpan? timeout = null)
         {
-            ActorRefProvider provider = ResolveProvider(self);
+            IActorRefProvider provider = ResolveProvider(self);
             if (provider == null)
                 throw new NotSupportedException("Unable to resolve the target Provider");
 
@@ -33,7 +40,7 @@ namespace Akka.Actor
             return result;
         }
 
-        internal static ActorRef ResolveReplyTo()
+        internal static IActorRef ResolveReplyTo()
         {
             if (ActorCell.Current != null)
                 return ActorCell.Current.Self;
@@ -41,13 +48,13 @@ namespace Akka.Actor
             return null;
         }
 
-        internal static ActorRefProvider ResolveProvider(ICanTell self)
+        internal static IActorRefProvider ResolveProvider(ICanTell self)
         {
             if (ActorCell.Current != null)
                 return InternalCurrentActorCellKeeper.Current.SystemImpl.Provider;
 
-            if (self is InternalActorRef)
-                return self.AsInstanceOf<InternalActorRef>().Provider;
+            if (self is IInternalActorRef)
+                return self.AsInstanceOf<IInternalActorRef>().Provider;
 
             if (self is ActorSelection)
                 return ResolveProvider(self.AsInstanceOf<ActorSelection>().Anchor);
@@ -55,7 +62,7 @@ namespace Akka.Actor
             return null;
         }
 
-        private static Task<object> Ask(ICanTell self, object message, ActorRefProvider provider,
+        private static Task<object> Ask(ICanTell self, object message, IActorRefProvider provider,
             TimeSpan? timeout)
         {
             var result = new TaskCompletionSource<object>(TaskContinuationOptions.AttachedToParent);
@@ -86,14 +93,14 @@ namespace Akka.Actor
     /// </summary>
     internal sealed class PromiseActorRef : MinimalActorRef
     {
-        public PromiseActorRef(ActorRefProvider provider, TaskCompletionSource<object> result, string mcn)
+        public PromiseActorRef(IActorRefProvider provider, TaskCompletionSource<object> result, string mcn)
         {
             _provider = provider;
             Result = result;
             _mcn = mcn;
         }
 
-        private readonly ActorRefProvider _provider;
+        private readonly IActorRefProvider _provider;
         public readonly TaskCompletionSource<object> Result;
 
         /// <summary>
@@ -175,16 +182,17 @@ namespace Akka.Actor
 
         private static readonly Status.Failure ActorStopResult = new Status.Failure(new ActorKilledException("Stopped"));
 
-        public static PromiseActorRef Apply(ActorRefProvider provider, TimeSpan timeout, object targetName,
-            string messageClassName, ActorRef sender = null)
+        public static PromiseActorRef Apply(IActorRefProvider provider, TimeSpan timeout, object targetName,
+            string messageClassName, IActorRef sender = null)
         {
-            sender = sender ?? NoSender;
+            sender = sender ?? ActorRefs.NoSender;
             var result = new TaskCompletionSource<object>();
             var a = new PromiseActorRef(provider, result, messageClassName);
-            var c = new CancellationTokenSource(timeout);
-            var f = provider.Guardian.Underlying.System.Scheduler.ScheduleOnce(timeout, () => result.TrySetResult(new Status.Failure(new AskTimeoutException(
+            var scheduler = provider.Guardian.Underlying.System.Scheduler.Advanced;
+            var c = new Cancelable(scheduler, timeout);
+            scheduler.ScheduleOnce(timeout, () => result.TrySetResult(new Status.Failure(new AskTimeoutException(
                 string.Format("Ask timed out on [{0}] after [{1} ms]. Sender[{2}] sent message of type {3}.", targetName, timeout.TotalMilliseconds, sender, messageClassName)))),
-                c.Token);
+                c);
 
             result.Task.ContinueWith(r =>
             {
@@ -204,19 +212,19 @@ namespace Akka.Actor
         #endregion
 
         //TODO: ActorCell.emptyActorRefSet ?
-        private readonly AtomicReference<HashSet<ActorRef>> _watchedByDoNotCallMeDirectly = new AtomicReference<HashSet<ActorRef>>();
+        private readonly AtomicReference<HashSet<IActorRef>> _watchedByDoNotCallMeDirectly = new AtomicReference<HashSet<IActorRef>>();
 
-        private HashSet<ActorRef> WatchedBy
+        private HashSet<IActorRef> WatchedBy
         {
             get { return _watchedByDoNotCallMeDirectly; }
         }
 
-        private bool UpdateWatchedBy(HashSet<ActorRef> oldWatchedBy, HashSet<ActorRef> newWatchedBy)
+        private bool UpdateWatchedBy(HashSet<IActorRef> oldWatchedBy, HashSet<IActorRef> newWatchedBy)
         {
             return _watchedByDoNotCallMeDirectly.CompareAndSet(oldWatchedBy, newWatchedBy);
         }
 
-        public override ActorRefProvider Provider
+        public override IActorRefProvider Provider
         {
             get { return _provider; }
         }
@@ -224,7 +232,7 @@ namespace Akka.Actor
         /// <summary>
         /// Returns false if the <see cref="Result"/> is already completed.
         /// </summary>
-        private bool AddWatcher(ActorRef watcher)
+        private bool AddWatcher(IActorRef watcher)
         {
             if (WatchedBy.Contains(watcher))
             {
@@ -233,7 +241,7 @@ namespace Akka.Actor
             return UpdateWatchedBy(WatchedBy, WatchedBy.CopyAndAdd(watcher)) || AddWatcher(watcher);
         }
 
-        private void RemoveWatcher(ActorRef watcher)
+        private void RemoveWatcher(IActorRef watcher)
         {
             if (!WatchedBy.Contains(watcher))
             {
@@ -242,10 +250,10 @@ namespace Akka.Actor
             if (!UpdateWatchedBy(WatchedBy, WatchedBy.CopyAndRemove(watcher))) RemoveWatcher(watcher);
         }
 
-        private HashSet<ActorRef> ClearWatchers()
+        private HashSet<IActorRef> ClearWatchers()
         {
             //TODO: ActorCell.emptyActorRefSet ?
-            if (WatchedBy == null) return new HashSet<ActorRef>();
+            if (WatchedBy == null) return new HashSet<IActorRef>();
             if (!UpdateWatchedBy(WatchedBy, null)) return ClearWatchers();
             else return WatchedBy;
         }
@@ -261,7 +269,7 @@ namespace Akka.Actor
             return _stateDoNotCallMeDirectly.CompareAndSet(oldState, newState);
         }
 
-        public override InternalActorRef Parent
+        public override IInternalActorRef Parent
         {
             get { return Provider.TempContainer; }
         }
@@ -315,11 +323,11 @@ namespace Akka.Actor
             }
         }
 
-        protected override void TellInternal(object message, ActorRef sender)
+        protected override void TellInternal(object message, IActorRef sender)
         {
-            if (message is SystemMessage)
+            if (message is ISystemMessage)
             {
-                SendSystemMessage(message as SystemMessage); 
+                SendSystemMessage(message as ISystemMessage); 
                 return;
             }
 
@@ -338,13 +346,13 @@ namespace Akka.Actor
         }
 
         //TODO: isn't SendSystemMessage supposed to be a part of ActorRef? Why isn't it overridable?
-        private void SendSystemMessage(SystemMessage message)
+        private void SendSystemMessage(ISystemMessage message)
         {
             if(message is Terminate) Stop();
             else if (message is DeathWatchNotification)
             {
                 var dw = message as DeathWatchNotification;
-                Tell(new Terminated(dw.Actor, dw.ExistenceConfirmed, dw.AddressTerminated));
+                Tell(new Terminated(dw.Actor, dw.ExistenceConfirmed, dw.AddressTerminated), this);
             }
             else if (message is Watch)
             {
@@ -427,3 +435,4 @@ namespace Akka.Actor
         }
     }
 }
+

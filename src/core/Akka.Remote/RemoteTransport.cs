@@ -1,6 +1,13 @@
-﻿using System;
-using System.Collections;
+﻿//-----------------------------------------------------------------------
+// <copyright file="RemoteTransport.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Event;
@@ -47,7 +54,7 @@ namespace Akka.Remote
         /// <summary>
         /// A logger that can be used to log issues that may occur
         /// </summary>
-        public LoggingAdapter Log { get; protected set; }
+        public ILoggingAdapter Log { get; protected set; }
 
         /// <summary>
         /// Start up the transport, i.e. enable incoming connections
@@ -63,7 +70,7 @@ namespace Akka.Remote
         /// <summary>
         /// Sends the given message to the recipient, supplying <see cref="sender"/> if any.
         /// </summary>
-        public abstract void Send(object message, ActorRef sender, RemoteActorRef recipient);
+        public abstract void Send(object message, IActorRef sender, RemoteActorRef recipient);
 
         /// <summary>
         /// Sends a management command to the underlying transport stack. The call returns with a Task that
@@ -91,7 +98,7 @@ namespace Akka.Remote
 
     /// <summary>
     /// Represents a general failure within a <see cref="RemoteTransport"/>, such as
-    /// the inabiltiy to start, wrong configuration, etc...
+    /// the inability to start, wrong configuration, etc...
     /// </summary>
     public class RemoteTransportException : AkkaException
     {
@@ -99,5 +106,11 @@ namespace Akka.Remote
             : base(message, cause)
         {
         }
+
+        protected RemoteTransportException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        {
+        }
     }
 }
+

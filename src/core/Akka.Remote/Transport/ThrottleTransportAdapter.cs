@@ -1,9 +1,15 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="ThrottleTransportAdapter.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Akka.Actor;
-using Akka.Dispatch.SysMsg;
 using Akka.Util;
 using Akka.Util.Internal;
 using Google.ProtocolBuffers;
@@ -144,7 +150,7 @@ namespace Akka.Remote.Transport
     {
         #region Internal message classes
 
-        internal sealed class Checkin : NoSerializationVerificationNeeded
+        internal sealed class Checkin : INoSerializationVerificationNeeded
         {
             public Checkin(Address origin, ThrottlerHandle handle)
             {
@@ -157,7 +163,7 @@ namespace Akka.Remote.Transport
             public ThrottlerHandle ThrottlerHandle { get; private set; }
         }
 
-        internal sealed class AssociateResult : NoSerializationVerificationNeeded
+        internal sealed class AssociateResult : INoSerializationVerificationNeeded
         {
             public AssociateResult(AssociationHandle associationHandle, TaskCompletionSource<AssociationHandle> statusPromise)
             {
@@ -170,7 +176,7 @@ namespace Akka.Remote.Transport
             public TaskCompletionSource<AssociationHandle> StatusPromise { get; private set; }
         }
 
-        internal sealed class ListenerAndMode : NoSerializationVerificationNeeded
+        internal sealed class ListenerAndMode : INoSerializationVerificationNeeded
         {
             public ListenerAndMode(IHandleEventListener handleEventListener, ThrottleMode mode)
             {
@@ -183,7 +189,7 @@ namespace Akka.Remote.Transport
             public ThrottleMode Mode { get; private set; }
         }
 
-        internal sealed class Handle : NoSerializationVerificationNeeded
+        internal sealed class Handle : INoSerializationVerificationNeeded
         {
             public Handle(ThrottlerHandle throttlerHandle)
             {
@@ -193,7 +199,7 @@ namespace Akka.Remote.Transport
             public ThrottlerHandle ThrottlerHandle { get; private set; }
         }
 
-        internal sealed class Listener : NoSerializationVerificationNeeded
+        internal sealed class Listener : INoSerializationVerificationNeeded
         {
             public Listener(IHandleEventListener handleEventListener)
             {
@@ -296,7 +302,7 @@ namespace Akka.Remote.Transport
                  * doesn't cause any exceptions to be thrown upstream - it just times out
                  * and propagates a failed Future.
                  * 
-                 * In the CLR, a CancellationExcepiton gets thrown and causes all
+                 * In the CLR, a CancellationException gets thrown and causes all
                  * parent tasks chaining back to the EndPointManager to fail due
                  * to an Ask timeout.
                  * 
@@ -325,7 +331,7 @@ namespace Akka.Remote.Transport
                  * doesn't cause any exceptions to be thrown upstream - it just times out
                  * and propagates a failed Future.
                  * 
-                 * In the CLR, a CancellationExcepiton gets thrown and causes all
+                 * In the CLR, a CancellationException gets thrown and causes all
                  * parent tasks chaining back to the EndPointManager to fail due
                  * to an Ask timeout.
                  * 
@@ -350,7 +356,8 @@ namespace Akka.Remote.Transport
 
         private static Address NakedAddress(Address address)
         {
-            return address.Copy(protocol: string.Empty, system: string.Empty);
+            return address.WithProtocol(string.Empty)
+                .WithSystem(string.Empty);
         }
 
         private ThrottleMode GetInboundMode(Address nakedAddress)
@@ -401,7 +408,7 @@ namespace Akka.Remote.Transport
                 return Task.FromResult(SetThrottleAck.Instance);
         }
 
-        private Task<SetThrottleAck> AskModeWithDeathCompletion(ActorRef target, ThrottleMode mode, TimeSpan timeout)
+        private Task<SetThrottleAck> AskModeWithDeathCompletion(IActorRef target, ThrottleMode mode, TimeSpan timeout)
         {
             if (target.IsNobody()) return Task.FromResult(SetThrottleAck.Instance);
             else
@@ -450,7 +457,7 @@ namespace Akka.Remote.Transport
         #endregion
     }
 
-    public abstract class ThrottleMode : NoSerializationVerificationNeeded
+    public abstract class ThrottleMode : INoSerializationVerificationNeeded
     {
         public abstract Tuple<ThrottleMode, bool> TryConsumeTokens(long nanoTimeOfSend, int tokens);
         public abstract TimeSpan TimeToAvailable(long currentNanoTime, int tokens);
@@ -663,12 +670,12 @@ namespace Akka.Remote.Transport
     /// </summary>
     internal sealed class ThrottlerHandle : AbstractTransportAdapterHandle
     {
-        internal readonly ActorRef ThrottlerActor;
+        internal readonly IActorRef ThrottlerActor;
         internal AtomicReference<ThrottleMode> OutboundThrottleMode = new AtomicReference<ThrottleMode>(Unthrottled.Instance);
 
         
 
-        public ThrottlerHandle(AssociationHandle wrappedHandle, ActorRef throttlerActor) : base(wrappedHandle, ThrottleTransportAdapter.Scheme)
+        public ThrottlerHandle(AssociationHandle wrappedHandle, IActorRef throttlerActor) : base(wrappedHandle, ThrottleTransportAdapter.Scheme)
         {
             ThrottlerActor = throttlerActor;
         }
@@ -713,7 +720,7 @@ namespace Akka.Remote.Transport
     /// <summary>
     /// INTERNAL API
     /// </summary>
-    internal class ThrottledAssociation : FSM<ThrottledAssociation.ThrottlerState, ThrottledAssociation.IThrottlerData>, LoggingFSM
+    internal class ThrottledAssociation : FSM<ThrottledAssociation.ThrottlerState, ThrottledAssociation.IThrottlerData>, ILoggingFSM
     {
         #region ThrottledAssociation FSM state and data classes
 
@@ -790,7 +797,7 @@ namespace Akka.Remote.Transport
 
         #endregion
 
-        protected ActorRef Manager;
+        protected IActorRef Manager;
         protected IAssociationEventListener AssociationHandler;
         protected AssociationHandle OriginalHandle;
         protected bool Inbound;
@@ -804,7 +811,7 @@ namespace Akka.Remote.Transport
         /// </summary>
         private static readonly AkkaPduProtobuffCodec Codec = new AkkaPduProtobuffCodec();
 
-        public ThrottledAssociation(ActorRef manager, IAssociationEventListener associationHandler, AssociationHandle originalHandle, bool inbound)
+        public ThrottledAssociation(IActorRef manager, IAssociationEventListener associationHandler, AssociationHandle originalHandle, bool inbound)
         {
             Manager = manager;
             AssociationHandler = associationHandler;
@@ -1067,3 +1074,4 @@ namespace Akka.Remote.Transport
         }
     }
 }
+

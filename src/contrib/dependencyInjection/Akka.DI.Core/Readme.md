@@ -21,12 +21,17 @@ Let's walk through the process of creating one for CastleWindsor container. You 
             throw new NotImplementedException();
         }
 
-        Func<ActorBase> CreateActorFactory(string ActorName)
+        Func<ActorBase> CreateActorFactory(Type actorType)
         {
             throw new NotImplementedException();
         }
 
         Props Create<TActor>()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Release(ActorBase actor)
         {
             throw new NotImplementedException();
         }
@@ -73,17 +78,25 @@ First you need to implement GetType. This is a basic implementation and is just 
 	
 Secondly you need to implement the CreateActorFactory method which will be used by the extension to create the Actor. This implementation will depend upon the API of the container.
 
-		public Func<ActorBase> CreateActorFactory(string actorName)
+		public Func<ActorBase> CreateActorFactory(Type actorType)
         {
-            return () => (ActorBase)container.Resolve(GetType(actorName));
+            return () => (ActorBase)container.Resolve(actorType);
         }
 
-Lastly, you implement the Create<TActor> which is used register the Props configuration for the referenced Actor Type with the ActorSystem. This method will always be the same implementation. 
+Thirdly, you implement the Create<TActor> which is used register the Props configuration for the referenced Actor Type with the ActorSystem. This method will always be the same implementation. 
 
         public Props Create<TActor>() where TActor : ActorBase
         {
             return system.GetExtension<DIExt>().Props(typeof(TActor).Name);
         }
+
+Lastly, you implement the Release method which in this instance is very simple.
+
+      public void Release(ActorBase actor)
+        {
+            this.container.Release(actor);
+        }
+**Note: For further details on the importance of the release method please read the following blog [post](http://blog.ploeh.dk/2014/05/19/di-friendly-framework/).**
 
 So with that you can do something like the following code example:
 
@@ -110,3 +123,9 @@ So with that you can do something like the following code example:
              hashGroup.Tell(msg);
 
 		}
+
+## Creating Child Actors using DI ##
+When you want to create child actors from within your existing actors using the Dependency Injection you can just use the Actor Content extension just like in the following example.
+
+    Context.DI().ActorOf<TypedActor>().Tell(message);
+

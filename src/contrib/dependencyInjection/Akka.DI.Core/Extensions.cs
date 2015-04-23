@@ -1,8 +1,13 @@
-﻿using Akka.Actor;
+﻿//-----------------------------------------------------------------------
+// <copyright file="Extensions.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using Akka.Actor;
 
 namespace Akka.DI.Core
 {
@@ -24,5 +29,23 @@ namespace Akka.DI.Core
             DIExtension.DIExtensionProvider.Get(system).Initialize(dependencyResolver);
         }
         
+
+        public static DIActorContextAdapter DI(this IActorContext context)
+        {
+            return new DIActorContextAdapter(context);
+        }
+
+        public static Type GetTypeValue(this string typeName)
+        {
+            var firstTry = Type.GetType(typeName);
+            Func<Type> searchForType = () =>
+                AppDomain.CurrentDomain
+                    .GetAssemblies()
+                    .SelectMany(x => x.GetTypes())
+                    .FirstOrDefault(t => t.Name.Equals(typeName));
+            
+            return firstTry ?? searchForType();
+        }
     }
 }
+

@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="TransportAdapters.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -100,7 +107,8 @@ namespace Akka.Remote.Transport
 
         public Address AugmentScheme(Address address)
         {
-            return address.Copy(protocol: AugmentScheme(address.Protocol));
+            var protocol = AugmentScheme(address.Protocol);
+            return address.WithProtocol(protocol);
         }
 
         public string RemoveScheme(string scheme)
@@ -112,7 +120,8 @@ namespace Akka.Remote.Transport
 
         public Address RemoveScheme(Address address)
         {
-            return address.Copy(protocol: RemoveScheme(address.Protocol));
+            var protocol = RemoveScheme(address.Protocol);
+            return address.WithProtocol(protocol);
         }
     }
 
@@ -291,11 +300,11 @@ namespace Akka.Remote.Transport
 
         public static readonly TimeSpan AskTimeout = TimeSpan.FromSeconds(5);
 
-        protected volatile ActorRef manager;
+        protected volatile IActorRef manager;
 
-        private Task<ActorRef> RegisterManager()
+        private Task<IActorRef> RegisterManager()
         {
-            return System.ActorSelection("/system/transports").Ask<ActorRef>(new RegisterTransportActor(ManagerProps, ManagerName));
+            return System.ActorSelection("/system/transports").Ask<IActorRef>(new RegisterTransportActor(ManagerProps, ManagerName));
         }
 
         protected override Task<IAssociationEventListener> InterceptListen(Address listenAddress, Task<IAssociationEventListener> listenerTask)
@@ -353,7 +362,7 @@ namespace Akka.Remote.Transport
                     associationListener = listener.Listener;
                     foreach (var dEvent in DelayedEvents)
                     {
-                        Self.Tell(dEvent, ActorRef.NoSender);
+                        Self.Tell(dEvent, ActorRefs.NoSender);
                     }
                     DelayedEvents = new Queue<object>();
                     Context.Become(Ready);
@@ -368,3 +377,4 @@ namespace Akka.Remote.Transport
         protected abstract void Ready(object message);
     }
 }
+

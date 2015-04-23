@@ -1,12 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
+﻿//-----------------------------------------------------------------------
+// <copyright file="ActorCell.DefaultMessages.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using Akka.Dispatch;
 using Akka.Dispatch.SysMsg;
 using Akka.Event;
-using Akka.Util.Internal;
 using Debug = Akka.Event.Debug;
 
 namespace Akka.Actor
@@ -43,7 +48,7 @@ namespace Akka.Actor
 
             try
             {
-                var autoReceivedMessage = message as AutoReceivedMessage;
+                var autoReceivedMessage = message as IAutoReceivedMessage;
                 if (autoReceivedMessage != null)
                     AutoReceiveMessage(envelope);
                 else
@@ -117,7 +122,7 @@ namespace Akka.Actor
 
         internal void ReceiveMessage(object message)
         {
-            var wasHandled = _actor.AroundReceive(behaviorStack.Peek(), message);
+            var wasHandled = _actor.AroundReceive(_state.GetCurrentBehavior(), message);
 
             if (System.Settings.AddLoggingReceive && _actor is ILogReceive)
             {
@@ -169,6 +174,8 @@ namespace Akka.Actor
                 else if (m is Recreate) FaultRecreate((m as Recreate).Cause);
                 else if (m is Suspend) FaultSuspend();
                 else if (m is Resume) FaultResume((m as Resume).CausedByFailure);
+                else if (m is SuspendReentrancy) HandleSuspendReentrancy();
+                else if (m is ResumeReentrancy) HandleResumeReentrancy();
                 else if (m is Terminate) Terminate();
                 else if (m is Supervise)
                 {
@@ -184,6 +191,16 @@ namespace Akka.Actor
             {
                 HandleInvokeFailure(cause);
             }
+        }
+
+        private void HandleSuspendReentrancy()
+        {
+            Mailbox.Suspend(MailboxSuspendStatus.AwaitingTask);
+        }
+
+        private void HandleResumeReentrancy()
+        {
+            Mailbox.Resume(MailboxSuspendStatus.AwaitingTask);
         }
 
         private void HandleCompleteTask(CompleteTask task)
@@ -214,12 +231,12 @@ namespace Akka.Actor
             }
         }
 
-        private void Supervise(ActorRef child, bool async)
+        private void Supervise(IActorRef child, bool async)
         {
             //TODO: complete this
             if (!IsTerminating)
             {
-                var childRestartStats = InitChild((InternalActorRef)child);
+                var childRestartStats = InitChild((IInternalActorRef)child);
                 if (childRestartStats != null)
                 {
                     HandleSupervise(child, async);
@@ -235,7 +252,7 @@ namespace Akka.Actor
             }
         }
 
-        private void HandleSupervise(ActorRef child, bool async)
+        private void HandleSupervise(IActorRef child, bool async)
         {
             if (async && child is RepointableActorRef)
             {
@@ -340,7 +357,17 @@ namespace Akka.Actor
             SendSystemMessage(Dispatch.SysMsg.Suspend.Instance);
         }
 
-        private void SendSystemMessage(SystemMessage systemMessage)
+        public void SuspendReentrancy()
+        {
+            SendSystemMessage(Dispatch.SysMsg.SuspendReentrancy.Instance);
+        }
+
+        public void ResumeReentrancy()
+        {
+            SendSystemMessage(Dispatch.SysMsg.ResumeReentrancy.Instance);
+        }
+
+        private void SendSystemMessage(ISystemMessage systemMessage)
         {
             try
             {
@@ -362,3 +389,4 @@ namespace Akka.Actor
         }
     }
 }
+

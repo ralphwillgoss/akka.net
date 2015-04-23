@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="FailureInjectorTransportAdapter.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using Akka.Actor;
@@ -6,6 +13,7 @@ using Akka.Event;
 using Akka.Util;
 using Akka.Util.Internal;
 using Google.ProtocolBuffers;
+using System.Runtime.Serialization;
 
 namespace Akka.Remote.Transport
 {
@@ -28,6 +36,11 @@ namespace Akka.Remote.Transport
         public FailureInjectorException(string msg)
         {
             Msg = msg;
+        }
+
+        private FailureInjectorException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        {
         }
 
         public string Msg { get; private set; }
@@ -102,7 +115,7 @@ namespace Akka.Remote.Transport
             _shouldDebugLog = ExtendedActorSystem.Settings.Config.GetBoolean("akka.remote.gremlin.debug");
         }
 
-        private LoggingAdapter _log;
+        private ILoggingAdapter _log;
         private Random Rng
         {
             get { return ThreadLocalRandom.Current; }
@@ -251,7 +264,8 @@ namespace Akka.Remote.Transport
 
         private static Address NakedAddress(Address address)
         {
-            return address.Copy(protocol: string.Empty, system: string.Empty);
+            return address.WithProtocol(string.Empty)
+                .WithSystem(string.Empty);
         }
 
         private IGremlinMode ChaosMode(Address remoteAddress)
@@ -314,3 +328,4 @@ namespace Akka.Remote.Transport
         #endregion
     }
 }
+

@@ -1,8 +1,15 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="AckedDelivery.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Security.Policy;
+using System.Runtime.Serialization;
 using Akka.Actor;
 
 namespace Akka.Remote
@@ -219,6 +226,10 @@ namespace Akka.Remote
         {
         }
 
+        protected ResendBufferCapacityReachedException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        {
+        }
     }
 
     class ResendUnfulfillableException : AkkaException
@@ -435,3 +446,4 @@ namespace Akka.Remote
         #endregion
     }
 }
+

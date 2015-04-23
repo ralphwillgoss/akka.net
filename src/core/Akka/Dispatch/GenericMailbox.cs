@@ -1,4 +1,11 @@
-﻿﻿using System.Diagnostics;
+﻿//-----------------------------------------------------------------------
+// <copyright file="GenericMailbox.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+﻿using System.Diagnostics;
 using System.Threading;
 using Akka.Actor;
 using Akka.Dispatch.MessageQueues;
@@ -10,8 +17,8 @@ namespace Akka.Dispatch
     /// Class Mailbox of TSys,TUser.
     /// </summary>
     public abstract class Mailbox<TSys, TUser> : MessageQueueMailbox
-        where TSys : MessageQueue
-        where TUser : MessageQueue
+        where TSys : IMessageQueue
+        where TUser : IMessageQueue
     {
         private Stopwatch _deadLineTimer;
         private volatile bool _isClosed;
@@ -83,7 +90,7 @@ namespace Akka.Dispatch
                 var left = dispatcher.Throughput;
 
                 //try dequeue a user message
-                while (!_isSuspended && !_isClosed && _userMessages.TryDequeue(out envelope))
+                while (!IsSuspended && !_isClosed && _userMessages.TryDequeue(out envelope))
                 {
                     Mailbox.DebugPrint(ActorCell.Self + " processing message " + envelope);
 
@@ -105,7 +112,7 @@ namespace Akka.Dispatch
 
                     //if deadline time have expired, stop and break
                     if (throughputDeadlineTime.HasValue && throughputDeadlineTime.Value > 0 &&
-                        _deadLineTimer.ElapsedTicks > throughputDeadlineTime.Value)
+                        _deadLineTimer.Elapsed.Ticks > throughputDeadlineTime.Value)
                     {
                         _deadLineTimer.Stop();
                         break;
@@ -121,7 +128,7 @@ namespace Akka.Dispatch
                 Interlocked.Exchange(ref status, MailboxStatus.Idle);
 
                 //there are still messages that needs to be processed
-                if (_systemMessages.Count > 0 || (!_isSuspended && _userMessages.Count > 0))
+                if (_systemMessages.Count > 0 || (!IsSuspended && _userMessages.Count > 0))
                 {
                     //we still need has unscheduled messages for external info.
                     //e.g. repointable actor ref uses it
@@ -132,7 +139,7 @@ namespace Akka.Dispatch
                     //but that doesn't matter, since if the above "if" misses
                     //the "Post" that adds the new message will still schedule
                     //this specific call is just to deal with existing messages
-                    //that wasn't scheduled due to dispatcher throughput beeing reached
+                    //that wasn't scheduled due to dispatcher throughput being reached
                     //or system messages arriving during user message processing
                     Schedule();
                 }
@@ -157,13 +164,13 @@ namespace Akka.Dispatch
         /// </summary>
         /// <param name="receiver"></param>
         /// <param name="envelope"> The envelope. </param>
-        public override void Post(ActorRef receiver, Envelope envelope)
+        public override void Post(IActorRef receiver, Envelope envelope)
         {
             if (_isClosed)
                 return;
 
             hasUnscheduledMessages = true;
-            if (envelope.Message is SystemMessage)
+            if (envelope.Message is ISystemMessage)
             {
                 Mailbox.DebugPrint("{0} enqueued system message {1} to {2}", ActorCell.Self, envelope, ActorCell.Self.Equals(receiver) ? "itself" : receiver.ToString());
                 _systemMessages.Enqueue(envelope);
@@ -236,9 +243,10 @@ namespace Akka.Dispatch
             //   }
         }
 
-        public override MessageQueue MessageQueue
+        public override IMessageQueue MessageQueue
         {
             get { return _userMessages; }
         }
     }
 }
+

@@ -1,5 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
+﻿//-----------------------------------------------------------------------
+// <copyright file="ActorCell.DeathWatch.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Linq;
 using Akka.Dispatch.SysMsg;
 using Akka.Event;
@@ -8,45 +14,43 @@ namespace Akka.Actor
 {
     partial class ActorCell
     {
-        HashSet<ActorRef> _watching = new HashSet<ActorRef>();
-        readonly HashSet<ActorRef> _watchedBy = new HashSet<ActorRef>();
-        HashSet<ActorRef> _terminatedQueue = new HashSet<ActorRef>();//terminatedqueue should never be used outside the message loop
+        private IActorState _state = new DefaultActorState();
 
-        public ActorRef Watch(ActorRef subject)
+        public IActorRef Watch(IActorRef subject)
         {
-            var a = (InternalActorRef)subject;
+            var a = (IInternalActorRef)subject;
 
             if (!a.Equals(Self) && !WatchingContains(a))
             {
                 MaintainAddressTerminatedSubscription(() =>
                 {
                     a.Tell(new Watch(a, Self)); // ➡➡➡ NEVER SEND THE SAME SYSTEM MESSAGE OBJECT TO TWO ACTORS
-                    _watching.Add(a);                        
+                    _state = _state.AddWatching(a);                   
                 }, a);
             }
             return a;
         }
 
-        public ActorRef Unwatch(ActorRef subject)
+        public IActorRef Unwatch(IActorRef subject)
         {
-            var a = (InternalActorRef)subject;
+            var a = (IInternalActorRef)subject;
             if (! a.Equals(Self) && WatchingContains(a))
             {
                 a.Tell(new Unwatch(a, Self));
                 MaintainAddressTerminatedSubscription(() =>
                 {
-                    _watching = RemoveFromSet(a, _watching);
+                    _state = _state.RemoveWatching(a);                    
                 }, a);
             }
-            _terminatedQueue = RemoveFromSet(a, _terminatedQueue);
+            _state = _state.RemoveTerminated(a);
             return a;
         }
 
         protected void ReceivedTerminated(Terminated t)
         {
-            if (_terminatedQueue.Contains(t.ActorRef))
+            if (_state.ContainsTerminated(t.ActorRef))
             {
-                _terminatedQueue.Remove(t.ActorRef); // here we know that it is the SAME ref which was put in
+                _state = _state.RemoveTerminated(t.ActorRef); // here we know that it is the SAME ref which was put in
                 ReceiveMessage(t);
             }
         }
@@ -55,13 +59,13 @@ namespace Akka.Actor
         /// When this actor is watching the subject of <see cref="Terminated"/> message
         /// it will be propagated to user's receive.
         /// </summary>
-        protected void WatchedActorTerminated(ActorRef actor, bool existenceConfirmed, bool addressTerminated)
+        protected void WatchedActorTerminated(IActorRef actor, bool existenceConfirmed, bool addressTerminated)
         {
             if (WatchingContains(actor))
             {
                 MaintainAddressTerminatedSubscription(() =>
                 {
-                    _watching = RemoveFromSet(actor, _watching);
+                    _state = _state.RemoveWatching(actor);
                 }, actor);
                 if (!IsTerminating)
                 {
@@ -75,32 +79,21 @@ namespace Akka.Actor
             }
         }
 
-        public void TerminatedQueuedFor(ActorRef subject)
+        public void TerminatedQueuedFor(IActorRef subject)
         {
-            _terminatedQueue.Add(subject);
+            _state = _state.AddTerminated(subject);
         }
 
-        private bool WatchingContains(ActorRef subject)
+        private bool WatchingContains(IActorRef subject)
         {
-            return _watching.Contains(subject) ||
-                   (subject.Path.Uid != ActorCell.UndefinedUid && _watching.Contains(new UndefinedUidActorRef(subject)));
-        }
-
-        private HashSet<ActorRef> RemoveFromSet(ActorRef subject, HashSet<ActorRef> set)
-        {
-            if (subject.Path.Uid != ActorCell.UndefinedUid)
-            {
-                set.Remove(subject);
-                set.Remove(new UndefinedUidActorRef(subject));
-                return set;
-            }
-
-            return new HashSet<ActorRef>(set.Where(a => !a.Path.Equals(subject.Path)));
+            return _state.ContainsWatching(subject) ||
+                   (subject.Path.Uid != ActorCell.UndefinedUid && _state.ContainsWatching(new UndefinedUidActorRef(subject)));
         }
 
         protected void TellWatchersWeDied()
         {
-            if (_watchedBy.Count==0) return;
+            var watchedBy = _state.GetWatchedBy();
+            if (!watchedBy.Any()) return;
             try
             {
                 // Don't need to send to parent parent since it receives a DWN by default
@@ -118,52 +111,57 @@ namespace Akka.Actor
                 *
                 * If the remote watchers are notified first, then the mailbox of the Remoting will guarantee the correct order.
                 */
-                foreach (var w in _watchedBy) SendTerminated(false, w);
-                foreach (var w in _watchedBy) SendTerminated(true, w);
+                foreach (var w in watchedBy) SendTerminated(false, w);
+                foreach (var w in watchedBy) SendTerminated(true, w);
             }
             finally
             {
-                _watching = new HashSet<ActorRef>();
+                _state = _state.ClearWatching();
             }
         }
 
-        private void SendTerminated(bool ifLocal, ActorRef watcher)
+        private void SendTerminated(bool ifLocal, IActorRef watcher)
         {
-            if (((ActorRefScope)watcher).IsLocal == ifLocal && !watcher.Equals(Parent))
+            if (((IActorRefScope)watcher).IsLocal == ifLocal && !watcher.Equals(Parent))
             {
-                ((InternalActorRef)watcher).Tell(new DeathWatchNotification(Self, true, false));
+                ((IInternalActorRef)watcher).Tell(new DeathWatchNotification(Self, true, false));
             }
         }
 
         protected void UnwatchWatchedActors(ActorBase actor)
         {
-            if(_watching.Count==0) return;
+            var watching = _state.GetWatching();
+            if(!watching.Any()) return;
             MaintainAddressTerminatedSubscription(() =>
             {
                 try
                 {
                     foreach ( // ➡➡➡ NEVER SEND THE SAME SYSTEM MESSAGE OBJECT TO TWO ACTORS
-                        var watchee in _watching.OfType<InternalActorRef>())
+                        var watchee in watching.OfType<IInternalActorRef>())
                         watchee.Tell(new Unwatch(watchee, Self));
                 }
                 finally
                 {
-                    _watching = new HashSet<ActorRef>();
-                    _terminatedQueue = new HashSet<ActorRef>();
+                    //_watching = new HashSet<IActorRef>();
+                    //_terminatedQueue = new HashSet<IActorRef>();
+                    _state = _state.ClearWatching();
+                    _state = _state.ClearTerminated();
                 }
             });
         }
 
-        protected void AddWatcher(ActorRef watchee, ActorRef watcher)
+        protected void AddWatcher(IActorRef watchee, IActorRef watcher)
         {
             var watcheeSelf = watchee.Equals(Self);
             var watcherSelf = watcher.Equals(Self);
 
             if (watcheeSelf && !watcherSelf)
             {
-                if(!_watchedBy.Contains(watcher)) MaintainAddressTerminatedSubscription(() =>
+                if(!_state.ContainsWatchedBy(watcher)) MaintainAddressTerminatedSubscription(() =>
                 {
-                    _watchedBy.Add(watcher);
+                    //_watchedBy.Add(watcher);
+                    _state = _state.AddWatchedBy(watcher);
+                    
                     if(System.Settings.DebugLifecycle) Publish(new Debug(Self.Path.ToString(), Actor.GetType(), string.Format("now watched by {0}", watcher)));
                 }, watcher);
             }
@@ -177,16 +175,18 @@ namespace Akka.Actor
             }
         }
 
-        protected void RemWatcher(ActorRef watchee, ActorRef watcher)
+        protected void RemWatcher(IActorRef watchee, IActorRef watcher)
         {
             var watcheeSelf = watchee.Equals(Self);
             var watcherSelf = watcher.Equals(Self);
 
             if (watcheeSelf && !watcherSelf)
             {
-                if( _watchedBy.Contains(watcher)) MaintainAddressTerminatedSubscription(() =>
+                if( _state.ContainsWatchedBy(watcher)) MaintainAddressTerminatedSubscription(() =>
                 {
-                    _watchedBy.Remove(watcher);
+                    //_watchedBy.Remove(watcher);
+                    _state = _state.RemoveWatchedBy(watcher);
+                    
                     if (System.Settings.DebugLifecycle) Publish(new Debug(Self.Path.ToString(), Actor.GetType(), string.Format("no longer watched by {0}", watcher)));
                 } , watcher);
             }
@@ -202,11 +202,19 @@ namespace Akka.Actor
 
         protected void AddressTerminated(Address address)
         {
+            var watchedBy = _state.GetWatchedBy();
             // cleanup watchedBy since we know they are dead
             MaintainAddressTerminatedSubscription(() =>
             {
-                foreach (var a in _watchedBy.Where(a => a.Path.Address == address)) _watchedBy.Remove(a);
+                foreach (var a in watchedBy.Where(a => a.Path.Address == address))
+                {
+                    //_watchedBy.Remove(a);
+                    _state = _state.RemoveWatchedBy(a);
+                }
             });
+
+            //
+            watchedBy = _state.GetWatchedBy();
 
             // send DeathWatchNotification to self for all matching subjects
             // that are not child with existenceConfirmed = false because we could have been watching a
@@ -214,7 +222,7 @@ namespace Akka.Actor
             // When a parent is watching a child and it terminates due to AddressTerminated
             // it is removed by sending DeathWatchNotification with existenceConfirmed = true to support
             // immediate creation of child with same name.
-            foreach(var a in _watching.Where(a => a.Path.Address == address))
+            foreach (var a in watchedBy.Where(a => a.Path.Address == address))
             {
                 Self.Tell(new DeathWatchNotification(a, true /*TODO: childrenRefs.getByRef(a).isDefined*/, true));
             }
@@ -226,7 +234,7 @@ namespace Akka.Actor
         /// Ends subscription to AddressTerminated if subscribing and the
         /// block removes the last non-local ref from watching and watchedBy.
         /// </summary>
-        private void MaintainAddressTerminatedSubscription(Action block, ActorRef change= null)
+        private void MaintainAddressTerminatedSubscription(Action block, IActorRef change= null)
         {
             if (IsNonLocal(change))
             {
@@ -242,17 +250,19 @@ namespace Akka.Actor
             }
         }
 
-        private static bool IsNonLocal(ActorRef @ref)
+        private static bool IsNonLocal(IActorRef @ref)
         {
             if (@ref == null) return true;
-            var a = @ref as InternalActorRef;
+            var a = @ref as IInternalActorRef;
             if (a != null && !a.IsLocal) return true;
             return false;
         }
 
         private bool HasNonLocalAddress()
         {
-            return _watching.Any(IsNonLocal) || _watchedBy.Any(IsNonLocal);
+            var watching = _state.GetWatching();
+            var watchedBy = _state.GetWatchedBy();
+            return watching.Any(IsNonLocal) || watchedBy.Any(IsNonLocal);
         }
 
         private void UnsubscribeAddressTerminated()
@@ -268,9 +278,9 @@ namespace Akka.Actor
 
     class UndefinedUidActorRef : MinimalActorRef
     {
-        readonly ActorRef _ref;
+        readonly IActorRef _ref;
 
-        public UndefinedUidActorRef(ActorRef @ref)
+        public UndefinedUidActorRef(IActorRef @ref)
         {
             _ref = @ref;
         }
@@ -280,7 +290,7 @@ namespace Akka.Actor
             get { return _ref.Path.WithUid(ActorCell.UndefinedUid); }
         }
 
-        public override ActorRefProvider Provider
+        public override IActorRefProvider Provider
         {
             get
             {
@@ -291,3 +301,4 @@ namespace Akka.Actor
     
 
 }
+

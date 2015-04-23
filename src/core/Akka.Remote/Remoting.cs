@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="Remoting.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -86,9 +93,9 @@ namespace Akka.Remote
     /// </summary>
     internal class Remoting : RemoteTransport
     {
-        private readonly LoggingAdapter log;
+        private readonly ILoggingAdapter log;
         private volatile IDictionary<string, HashSet<ProtocolTransportAddressPair>> _transportMapping;
-        private volatile ActorRef _endpointManager;
+        private volatile IActorRef _endpointManager;
 
         // This is effectively a write-once variable similar to a lazy val. The reason for not using a lazy val is exception
         // handling.
@@ -98,7 +105,7 @@ namespace Akka.Remote
         // a lazy val
         private volatile Address _defaultAddress;
 
-        private ActorRef _transportSupervisor;
+        private IActorRef _transportSupervisor;
         private EventPublisher _eventPublisher;
 
         public Remoting(ExtendedActorSystem system, RemoteActorRefProvider provider)
@@ -221,14 +228,14 @@ namespace Akka.Remote
             }
         }
 
-        public override void Send(object message, ActorRef sender, RemoteActorRef recipient)
+        public override void Send(object message, IActorRef sender, RemoteActorRef recipient)
         {
             if (_endpointManager == null)
             {
                 throw new RemoteTransportException("Attempted to send remote message but Remoting is not running.", null);
             }
             if (sender == null)
-                sender = ActorRef.NoSender;
+                sender = ActorRefs.NoSender;
 
             _endpointManager.Tell(new EndpointManager.Send(message, recipient, sender), sender);
         }
@@ -317,7 +324,7 @@ namespace Akka.Remote
         #endregion
     }
 
-    internal sealed class RegisterTransportActor : NoSerializationVerificationNeeded
+    internal sealed class RegisterTransportActor : INoSerializationVerificationNeeded
     {
         public RegisterTransportActor(Props props, string name)
         {
@@ -353,3 +360,4 @@ namespace Akka.Remote
         }
     }
 }
+

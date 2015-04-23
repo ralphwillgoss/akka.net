@@ -1,7 +1,13 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="ActorDslSpec.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using Akka.Actor;
 using Akka.Actor.Dsl;
-using Akka.Dispatch.SysMsg;
 using Akka.TestKit;
 using Xunit;
 
@@ -24,17 +30,23 @@ namespace Akka.Tests.Actor
         {
             var a = Sys.ActorOf(c => c.Become((msg, ctx) =>
             {
-                if (msg == "info")
+                var message = msg as string;
+                if (message == null) return;
+
+                if (message == "info")
                     TestActor.Tell("A");
-                else if (msg == "switch")
+                else if (message == "switch")
                     c.BecomeStacked((msg2, ctx2) =>
                     {
-                        if (msg2 == "info")
+                        var message2 = msg2 as string;
+                        if (message2 == null) return;
+                        
+                        if (message2 == "info")
                             TestActor.Tell("B");
-                        else if (msg2 == "switch")
+                        else if (message2 == "switch")
                             c.UnbecomeStacked();
                     });
-                else if (msg == "lobotomize")
+                else if (message == "lobotomize")
                     c.UnbecomeStacked();
             }));
 
@@ -129,3 +141,4 @@ namespace Akka.Tests.Actor
         }
     }
 }
+

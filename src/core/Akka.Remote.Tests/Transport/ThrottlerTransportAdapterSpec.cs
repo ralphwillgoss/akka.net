@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="ThrottlerTransportAdapterSpec.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Text.RegularExpressions;
 using Akka.Actor;
 using Akka.Configuration;
@@ -6,7 +13,6 @@ using Akka.Remote.Transport;
 using Akka.TestKit;
 using Akka.TestKit.Internal;
 using Akka.TestKit.Internal.StringMatcher;
-using Akka.TestKit.TestActors;
 using Akka.TestKit.TestEvent;
 using Akka.Util.Internal;
 using Xunit;
@@ -43,14 +49,14 @@ namespace Akka.Remote.Tests.Transport
 
         public class ThrottlingTester : ReceiveActor
         {
-            private ActorRef _remoteRef;
-            private ActorRef _controller;
+            private IActorRef _remoteRef;
+            private IActorRef _controller;
 
             private int _received = 0;
             private int _messageCount = MessageCount;
             private long _startTime = 0L;
 
-            public ThrottlingTester(ActorRef remoteRef, ActorRef controller)
+            public ThrottlingTester(IActorRef remoteRef, IActorRef controller)
             {
                 _remoteRef = remoteRef;
                 _controller = controller;
@@ -119,14 +125,14 @@ namespace Akka.Remote.Tests.Transport
         }
 
         private ActorSystem systemB;
-        private ActorRef remote;
+        private IActorRef remote;
 
         private RootActorPath RootB
         {
             get { return new RootActorPath(systemB.AsInstanceOf<ExtendedActorSystem>().Provider.DefaultAddress); }
         }
 
-        private ActorRef Here
+        private IActorRef Here
         {
             get
             {
@@ -243,3 +249,4 @@ namespace Akka.Remote.Tests.Transport
         #endregion
     }
 }
+

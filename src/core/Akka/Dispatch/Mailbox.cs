@@ -1,4 +1,11 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="Mailbox.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Diagnostics;
 using System.Threading;
 using Akka.Actor;
@@ -56,7 +63,7 @@ namespace Akka.Dispatch
         /// </summary>
         /// <param name="receiver"></param>
         /// <param name="envelope">The envelope.</param>
-        public abstract void Post(ActorRef receiver, Envelope envelope);
+        public abstract void Post(IActorRef receiver, Envelope envelope);
 
         /// <summary>
         ///     Stops this instance.
@@ -141,16 +148,28 @@ namespace Akka.Dispatch
             }
         }
 
-        protected volatile bool _isSuspended;
-        public bool IsSuspended { get { return _isSuspended; } }
+        private volatile MailboxSuspendStatus _suspendStatus;
+        public bool IsSuspended { get { return _suspendStatus != MailboxSuspendStatus.NotSuspended; } }
+
         public void Suspend()
         {
-            _isSuspended = true;
+            Suspend(MailboxSuspendStatus.Supervision);
         }
 
         public void Resume()
         {
-            _isSuspended = false;
+            _suspendStatus = MailboxSuspendStatus.NotSuspended;
+            Schedule();
+        }
+
+        public void Suspend(MailboxSuspendStatus reason)
+        {
+            _suspendStatus |= reason;
+        }
+
+        public void Resume(MailboxSuspendStatus reason)
+        {
+            _suspendStatus &= ~reason;
             Schedule();
         }
 
@@ -160,5 +179,14 @@ namespace Akka.Dispatch
         public abstract void CleanUp();
 
         //TODO: When Mailbox gets SuspendCount, update ActorCell.MakeChild
-    }   
+    }
+
+    [Flags]
+    public enum MailboxSuspendStatus
+    {
+        NotSuspended = 0,
+        Supervision = 1,
+        AwaitingTask = 2,
+    }
 }
+

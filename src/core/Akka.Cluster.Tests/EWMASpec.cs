@@ -1,10 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
+﻿//-----------------------------------------------------------------------
+// <copyright file="EWMASpec.cs" company="Akka.NET Project">
+//     Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+//     Copyright (C) 2013-2015 Akka.NET project <https://github.com/akkadotnet/akka.net>
+// </copyright>
+//-----------------------------------------------------------------------
+
+using System;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using Akka.TestKit;
 using Akka.Util;
 using Xunit;
@@ -122,21 +126,16 @@ namespace Akka.Cluster.Tests
 
         #region IDisposable members
 
-        public void Dispose()
+        /// <summary>
+        /// Needs to hide previous Dispose implementation in order to avoid recursive disposal.
+        /// </summary>
+        public new void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _collector.Dispose();
-                base.Dispose();
-            }
+            _collector.Dispose();
+            base.Dispose();
         }
 
         #endregion
     }
 }
+
